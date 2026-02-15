@@ -9,7 +9,9 @@ services:
       - db_data:/var/lib/postgresql/data
 
   backend:
-    build: ./backend
+    build: .
+    ports:
+      - "8080:8080"
     env_file:
       - .env
     environment:
