@@ -1,0 +1,17 @@
+# Python bytecode and caches
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environments (if you use local venvs)
+.venv/
+venv/
+env/
+.env
+
+# Database files (if you accidentally kept any in this folder)
+*.db
+*.sqlite3
+
+# OS metadata
+.DS_Store
