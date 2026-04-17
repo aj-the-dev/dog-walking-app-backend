@@ -4,9 +4,9 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.pool import StaticPool
 from sqlalchemy.orm import sessionmaker
-from app import app, get_db, Base
+from app import app, get_db, Base, verify_clerk_jwt
 
-TEST_API_KEY = os.getenv("TEST_API_KEY", "")
+TEST_TOKEN = "test-bearer-token"
 
 # 1. Use StaticPool to keep the same connection alive in memory
 SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:"
@@ -27,7 +27,16 @@ def override_get_db():
     finally:
         db.close()
 
+async def mock_verify_clerk_jwt():
+    """Mock Clerk JWT verification for tests."""
+    return {
+        "sub": "user_test123",
+        "email": "test@example.com",
+        "iss": "https://clerk.test"
+    }
+
 app.dependency_overrides[get_db] = override_get_db
+app.dependency_overrides[verify_clerk_jwt] = mock_verify_clerk_jwt
 client = TestClient(app)
 
 # --- Authentication Tests ---
@@ -40,13 +49,17 @@ def test_health_check():
 def test_get_walks_no_auth():
     response = client.get("/api/walks")
     assert response.status_code == 401
-    assert response.json()["detail"] == "Authentication required."
+    assert response.json()["detail"] == "Authentication required"
 
 def test_get_walks_wrong_auth():
-    headers = {"x-api-key": "wrong_key"}
+    headers = {"Authorization": "Bearer invalid-token"}
+    # Remove the mock temporarily to test invalid token
+    app.dependency_overrides.pop(verify_clerk_jwt, None)
     response = client.get("/api/walks", headers=headers)
-    assert response.status_code == 403
-    assert response.json()["detail"] == "Authentication failed."
+    # Restore the mock
+    app.dependency_overrides[verify_clerk_jwt] = mock_verify_clerk_jwt
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Invalid or expired token"
 
 # --- Database Mock Tests ---
 
@@ -55,7 +68,7 @@ def test_create_and_get_walk():
     # Ensure tables exist for this specific test
     Base.metadata.create_all(bind=engine) 
     
-    headers = {"x-api-key": TEST_API_KEY}
+    headers = {"Authorization": f"Bearer {TEST_TOKEN}"}
     payload = {
         "person": "Oskar",
         "dog": "Buddy",
@@ -76,7 +89,7 @@ def test_create_and_get_walk():
 
 def test_create_and_delete_walk():
     """Verify that we can create a walk and then successfully delete it."""
-    headers = {"x-api-key": TEST_API_KEY}
+    headers = {"Authorization": f"Bearer {TEST_TOKEN}"}
     payload = {
         "person": "Oskar",
         "dog": "Buddy",

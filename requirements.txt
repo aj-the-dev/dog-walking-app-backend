@@ -4,6 +4,9 @@ sqlalchemy
 psycopg2-binary
 pydantic
 python-multipart
-bcrypt
+clerk-backend-api
 pytest
 httpx
+pyjwt[crypto]
+cryptography
+requests
